@@ -226,6 +226,7 @@ contract StrategyPassiveManagerUniswap is StratFeeManagerInitializable, IStrateg
     }
 
     /// @notice Adds liquidity to the main and alternative positions called on deposit, harvest and withdraw.
+    //audit should revert if amountsOk is flase. Could lead to minting Alt positions without Main positions
     function _addLiquidity() private {
         _whenStrategyNotPaused();
 

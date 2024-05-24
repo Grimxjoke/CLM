@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 interface IFeeConfig {
     struct FeeCategory {
         uint256 total;
-        uint256 beefy; //audit-info What is this variable ?
+        uint256 beefy; //audit-info What is this variable ? @mody: I believe this is their royalties address where they get their portions. 
         uint256 call;
         uint256 strategist;
         string label;
