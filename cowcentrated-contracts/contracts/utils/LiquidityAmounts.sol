@@ -5,6 +5,7 @@ import "./FullMath.sol";
 /// @title FixedPoint96
 /// @notice A library for handling binary fixed point numbers, see https://en.wikipedia.org/wiki/Q_(number_format)
 /// @dev Used in SqrtPriceMath.sol
+//audit-info This library defines constants for handling binary fixed point numbers with a resolution of 96 bits.
 library FixedPoint96 {
     uint8 internal constant RESOLUTION = 96;
     uint256 internal constant Q96 = 0x1000000000000000000000000;
@@ -12,6 +13,7 @@ library FixedPoint96 {
 
 /// @title Liquidity amount functions
 /// @notice Provides functions for computing liquidity amounts from token amounts and prices
+//audit-info This library provides functions to compute liquidity amounts from token amounts and prices, and vice versa.
 library LiquidityAmounts {
     function toUint128(uint256 x) private pure returns (uint128 y) {
         require((y = uint128(x)) == x);
@@ -31,7 +33,7 @@ library LiquidityAmounts {
         if (sqrtRatioAX96 > sqrtRatioBX96)
             (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
         uint256 intermediate =
-            FullMath.mulDiv(sqrtRatioAX96, sqrtRatioBX96, FixedPoint96.Q96);
+            FullMath.mulDiv(sqrtRatioAX96, sqrtRatioBX96, FixedPoint96.Q96); //audit Can't oveflow revert ? 
         return
             toUint128(
                 FullMath.mulDiv(

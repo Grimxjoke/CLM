@@ -40,10 +40,12 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     /// @notice The address of the Velodrome pool.
     address public pool;
     /// @notice The address of the quoter.
+    //audit-info What's the quoter ? 
     address public quoter;
     /// @notice The address of the NFT position manager.
     address public nftManager;
     /// @notice The address of the gauge. 
+    //audit-info What's the gauge ? 
     address public gauge;
     /// @notice The address of the output. 
     address public output;
@@ -52,6 +54,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     /// @notice The address of the second token in the liquidity pool.
     address public lpToken1;
     /// @notice The address of the rewardPool.
+    //audit-info What's the reward pool ? 
     address public rewardPool;
 
     /// @notice The amount of unharvested output in the strategy.
@@ -78,12 +81,15 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     /// @notice The alternative position of the strategy.
     /// @dev this will always be a single sided (limit order) position that will start closest to current tick and continue to width * tickSpacing.
     /// This will always be in the token that has the most value after we fill our main position. 
+    //audit Invariant: Alternative Position SHOULD always be in the token that has the most value
     Position public positionAlt;
 
     /// @notice The width of the position, thats a multiplier for tick spacing to find our range. 
+    //audit-info Who set's that and can it be modify ? In what term ?  
     int24 public positionWidth;
 
-    /// @notice the max tick deviations we will allow for deposits/setTick. 
+    /// @notice the max tick deviations we will allow for deposits/setTick.
+    //audit-info Who set's that and can it be modify ? In what term ?  
     int56 public maxTickDeviation;
 
     /// @notice The twap interval seconds we use for the twap check. 
@@ -130,6 +136,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     }
 
     /// @notice function to only allow deposit/setTick actions when current price is within a certain deviation of twap.
+    //audit Crutial function imo
     function isCalm() public view returns (bool) {
         int24 tick = currentTick();
         int56 twapTick = twap();
@@ -189,6 +196,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     }
 
     /// @notice Only allows the vault to call a function.
+    //audit Can the vault address be change ? 
     function _onlyVault () private view {
         if (msg.sender != vault) revert NotVault();
     }
@@ -241,14 +249,14 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
     /// @notice Adds liquidity to the main and alternative positions called on deposit, harvest and withdraw.
     function _addLiquidity() private {
-        _whenStrategyNotPaused();
+        _whenStrategyNotPaused(); //revert if the Stategy is Paused 
 
         (uint256 bal0, uint256 bal1) = balancesOfThis();
 
-        int24 mainLower = positionMain.tickLower;
-        int24 mainUpper = positionMain.tickUpper;
-        int24 altLower = positionAlt.tickLower;
-        int24 altUpper = positionAlt.tickUpper;
+        int24 mainLower = positionMain.tickLower; //get the tick Lower of Main position
+        int24 mainUpper = positionMain.tickUpper; //get the tick Upper of Main position
+        int24 altLower = positionAlt.tickLower;   //get the tick Lower of Alt position
+        int24 altUpper = positionAlt.tickUpper;   //get the tick Upper of Alt position  
 
         // Then we fetch how much liquidity we get for adding at the main position ticks with our token balances. 
         uint160 sqrtprice = sqrtPrice();
@@ -271,6 +279,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
         // Mint or add liquidity to the position. 
         if (liquidity > 0 && amountsOk) {
+            //audit-info Mint position if the user has some liquidity in main
             _mintPosition(mainLower, mainUpper, amount0, amount1, true);
         }
 
@@ -294,6 +303,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
         // Mint or add liquidity to the position.
         if (liquidity > 0 && (amount0 > 0 || amount1 > 0)) {
+             //audit-info Mint position if the user has some liquidity in alt
             _mintPosition(altLower, altUpper, amount0, amount1, false);
         }
 
@@ -353,7 +363,8 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
                 amount1Min: 0,
                 deadline: block.timestamp
             });
-
+        //audit Is it possible to have 0 liquidity and still have some fees left to collect ? 
+        //audit If that's the case, the fees aren't collected, and the positions isn't burn.
             collectParams = INftPositionManager.CollectParams({
                 tokenId: positionMain.nftId,
                 recipient: address(this),
@@ -431,6 +442,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     /// @notice Harvest call to claim rewards from gauge then charge fees for Beefy and notify rewards.
     /// @dev Call fee goes to the tx.origin. 
     function harvest() external {
+        //audit-info Why not use msg.sender ? Account Abstraction EIP4337 is not compatible
         _harvest(tx.origin);
     }
 
@@ -614,6 +626,8 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
      * @notice The sqrt price of the pool.
      * @return sqrtPriceX96 The sqrt price of the pool.
     */
+
+    //audit Watchout, Can be easily manipulated
     function sqrtPrice() public view returns (uint160 sqrtPriceX96) {
         (sqrtPriceX96,,,,,) = IVeloPool(pool).slot0();
     }
@@ -653,6 +667,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         uint256 amount0;
 
         if (bal0 > 0) {
+            //audit price() is spot price and it's manipulable
             amount0 = bal0 * price() / PRECISION;
         }
 
@@ -740,11 +755,11 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     */
     function twap() public view returns (int56 twapTick) {
         uint32[] memory secondsAgo = new uint32[](2);
-        secondsAgo[0] = uint32(twapInterval);
+        secondsAgo[0] = uint32(twapInterval); //audit-info Why cast it to uint32 when it's already the default type? 
         secondsAgo[1] = 0;
 
-        (int56[] memory tickCuml,) = IVeloPool(pool).observe(secondsAgo);
-        twapTick = (tickCuml[1] - tickCuml[0]) / int32(twapInterval);
+        (int56[] memory tickCuml,) = IVeloPool(pool).observe(secondsAgo); //audit-info check on what observe() is doing 
+        twapTick = (tickCuml[1] - tickCuml[0]) / int32(twapInterval); //audit-ok Pretty safe to downcast to int32 as the max value is 2B.
     }
 
     function setTwapInterval(uint32 _interval) external onlyOwner {
@@ -815,8 +830,12 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     }
 
     /// @notice Unpause deposits, give allowances and add liquidity.
+    //audit What's the matter of Pause/Unpaused when there are no function using the whenNotPaused() modifier ? 
     function unpause() external onlyManager {
+        //audit-info how can the owner be the 0 address ? 
         if (owner() == address(0)) revert NotAuthorized();
+
+        //audit-info Why so many actions only on unpaused ? 
         _giveAllowances();
         _unpause();
         _setTicks();

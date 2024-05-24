@@ -19,6 +19,8 @@ library VeloSwapUtils {
     bytes1 constant V2_SWAP_EXACT_IN = 0x08;
 
     // Swap along an encoded path using known amountIn
+    //audit-info Check on Velodrome Finance for Swap Execution.
+    //audit-info Also check on Solodit for related issue in Velodrome Integration.
     function swap(
         address _router,
         bytes memory _path,
@@ -41,6 +43,7 @@ library VeloSwapUtils {
     }
 
     // Swap along an encoded path using known amountIn
+    //audit-info Only for V2 then ? 
     function swap(
         address _router,
         IVeloRouter.Route[] memory _route,
@@ -54,6 +57,7 @@ library VeloSwapUtils {
     }
 
     // Swap along an encoded path using known amountIn
+    //audit-info Swap on behalf of someone else ? 
     function swap(
         address _who,
         address _router,

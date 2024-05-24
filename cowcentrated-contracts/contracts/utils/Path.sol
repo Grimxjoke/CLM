@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
+//audit-info What is that Library? 
 import './BytesLib.sol';
 
 /// @title Functions for manipulating path data for multihop swaps
@@ -13,11 +14,12 @@ library Path {
     uint256 private constant FEE_SIZE = 3;
 
     /// @dev The offset of a single token address and pool fee
-    uint256 private constant NEXT_OFFSET = ADDR_SIZE + FEE_SIZE;
+    uint256 private constant NEXT_OFFSET = ADDR_SIZE + FEE_SIZE; //== 23
     /// @dev The offset of an encoded pool key
-    uint256 private constant POP_OFFSET = NEXT_OFFSET + ADDR_SIZE;
+    //audit-info Why do they again add the address's size 
+    uint256 private constant POP_OFFSET = NEXT_OFFSET + ADDR_SIZE; //== 43
     /// @dev The minimum length of an encoding that contains 2 or more pools
-    uint256 private constant MULTIPLE_POOLS_MIN_LENGTH = POP_OFFSET + NEXT_OFFSET;
+    uint256 private constant MULTIPLE_POOLS_MIN_LENGTH = POP_OFFSET + NEXT_OFFSET; //== 66
 
     /// @notice Returns true iff the path contains two or more pools
     /// @param path The encoded swap path

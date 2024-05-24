@@ -9,6 +9,7 @@ library TickUtils {
     using Path for bytes;
     using TickMath for int24;
     
+    //audit Not sure on what the function is suppose to do. Missing Naspec
     function floor(int24 tick, int24 tickSpacing) internal pure returns (int24) {
         int24 compressed = tick / tickSpacing;
         if (tick < 0 && tick % tickSpacing != 0) compressed--;
@@ -45,6 +46,8 @@ library TickUtils {
         );
     }
 
+
+    //audit-info Get deeper in this function
     function getQuoteAtTick(
         int24 tick,
         uint128 baseAmount,

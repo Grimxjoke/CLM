@@ -81,6 +81,7 @@ contract StratFeeManagerInitializable is OwnableUpgradeable, PausableUpgradeable
     /**
      * @notice function that returns true if the strategy is paused
      */
+
     function _isPaused() internal view returns (bool) {
         return paused() || factory.globalPause();
     }
@@ -88,6 +89,7 @@ contract StratFeeManagerInitializable is OwnableUpgradeable, PausableUpgradeable
     /** 
      * @notice Modifier that throws if called by any account other than the manager or the owner
     */
+    //audit Can the keeper be changed ? 
     modifier onlyManager() {
         if (msg.sender != owner() && msg.sender != keeper()) revert NotManager();
         _;
@@ -112,6 +114,8 @@ contract StratFeeManagerInitializable is OwnableUpgradeable, PausableUpgradeable
      * @notice get the fees breakdown from the fee config for this contract
      * @return IFeeConfig.FeeCategory The fees breakdown
      */
+
+    //audit-info What is IFeeConfig(factory.beefyFeeConfig).getFees(this);
     function getFees() internal view returns (IFeeConfig.FeeCategory memory) {
         return beefyFeeConfig().getFees(address(this));
     }
@@ -120,6 +124,7 @@ contract StratFeeManagerInitializable is OwnableUpgradeable, PausableUpgradeable
      * @notice get all the fees from the fee config for this contract
      * @return IFeeConfig.AllFees The fees
      */
+     //audit depositFee(), withdrawFee() set to 0.
     function getAllFees() external view returns (IFeeConfig.AllFees memory) {
         return IFeeConfig.AllFees(getFees(), depositFee(), withdrawFee());
     }
@@ -181,6 +186,7 @@ contract StratFeeManagerInitializable is OwnableUpgradeable, PausableUpgradeable
      * @return locked0 The amount of token0 locked
      * @return locked1 The amount of token1 locked
      */
+     //audit-info Looks weird
     function lockedProfit() public virtual view returns (uint256 locked0, uint256 locked1) {
         uint256 elapsed = block.timestamp - lastHarvest;
         uint256 remaining = elapsed < DURATION ? DURATION - elapsed : 0;

@@ -137,11 +137,13 @@ interface INftPositionManager {
     /// amount1Max The maximum amount of token1 to collect
     /// @return amount0 The amount of fees collected in token0
     /// @return amount1 The amount of fees collected in token1
+    //audit can I collect on another user behalf ? 
     function collect(CollectParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
 
     /// @notice Burns a token ID, which deletes it from the NFT contract. The token must have 0 liquidity and all tokens
     /// must be collected first.
     /// @param tokenId The ID of the token that is being burned
+    //audit Invariant: liquidity SHOULD be 0 AND collect() SHOULD have been called before.
     function burn(uint256 tokenId) external payable;
 
     /// @notice Sets a new Token Descriptor
