@@ -5,3 +5,6 @@ node_modules/
 .nvmrc
 
 artifacts/
+out/
+cache/
+cache_forge/

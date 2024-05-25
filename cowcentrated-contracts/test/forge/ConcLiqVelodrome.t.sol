@@ -136,7 +136,6 @@ contract ConLiqVelodromeTest is Test {
             "StrategyPassiveManagerVelodrome_v1"
         );
         strategy = StrategyPassiveManagerVelodrome(_strategy);
-        console.log("Before initializing strategy");
         strategy.initialize(
             pool,
             quoter,
@@ -148,7 +147,6 @@ contract ConLiqVelodromeTest is Test {
             paths,
             commonAddresses
         );
-        console.log("After initializing strategy");
 
         rewardPool.setWhitelist(address(strategy), true);
 
