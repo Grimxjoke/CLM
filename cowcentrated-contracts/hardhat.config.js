@@ -7,8 +7,13 @@ const accounts = [process.env.DEPLOYER_PK];
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  defaultNetwork: "mainnet",
+  defaultNetwork: "optimism",
   networks: {
+    optimism: {
+      url: process.env.OPTIMISM_RPC,
+      chainId: 11155420,
+      accounts,
+    },
     mainnet: {
       url: process.env.MAINNET_RPC || "https://rpc.ankr.com/eth",
       chainId: 1,

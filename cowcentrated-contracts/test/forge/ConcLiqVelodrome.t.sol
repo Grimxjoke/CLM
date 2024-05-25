@@ -34,8 +34,10 @@ contract ConLiqVelodromeTest is Test {
     address constant native = 0x4200000000000000000000000000000000000006;
     address constant output = 0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db;
     address constant strategist = 0xb2e4A61D99cA58fB8aaC58Bb2F8A59d63f552fC0;
-    address constant beefyFeeRecipient = 0x02Ae4716B9D5d48Db1445814b0eDE39f5c28264B;
-    address constant beefyFeeConfig = 0x216EEE15D1e3fAAD34181f66dd0B665f556a638d;
+    address constant beefyFeeRecipient =
+        0x02Ae4716B9D5d48Db1445814b0eDE39f5c28264B;
+    address constant beefyFeeConfig =
+        0x216EEE15D1e3fAAD34181f66dd0B665f556a638d;
     address constant unirouter = 0xF132bdb9573867cD72f2585C338B923F973EB817;
     address constant quoter = 0xA2DEcF05c16537C702779083Fe067e308463CE45;
     address constant keeper = 0x4fED5491693007f0CD49f4614FFC38Ab6A04B619;
@@ -55,21 +57,33 @@ contract ConLiqVelodromeTest is Test {
     error NoOutputBal();
 
     function setUp() public {
-
         // Deploy Contracts
         BeefyVaultConcLiq vaultImplementation = new BeefyVaultConcLiq();
-        vaultFactory = new BeefyVaultConcLiqFactory(address(vaultImplementation));
+        vaultFactory = new BeefyVaultConcLiqFactory(
+            address(vaultImplementation)
+        );
         vault = vaultFactory.cloneVault();
 
         implementation = new StrategyPassiveManagerVelodrome();
-        factory = new StrategyFactory(native, keeper, beefyFeeRecipient, beefyFeeConfig);
+        factory = new StrategyFactory(
+            native,
+            keeper,
+            beefyFeeRecipient,
+            beefyFeeConfig
+        );
 
         BeefyRewardPool rewardPoolImplementation = new BeefyRewardPool();
-        rewardPoolFactory = new BeefyRewardPoolFactory(address(rewardPoolImplementation));
+        rewardPoolFactory = new BeefyRewardPoolFactory(
+            address(rewardPoolImplementation)
+        );
         rewardPool = rewardPoolFactory.cloneRewardPool();
 
-        rewardPool.initialize(address(vault), "rCowVeloETH-USDC", "rCowVeloETH-USDC");
-        
+        rewardPool.initialize(
+            address(vault),
+            "rCowVeloETH-USDC",
+            "rCowVeloETH-USDC"
+        );
+
         // Set up routing for trade paths
         address[] memory lpToken0ToNative = new address[](2);
         lpToken0ToNative[0] = token0;
@@ -95,37 +109,46 @@ contract ConLiqVelodromeTest is Test {
 
         rewardPath = routeToPath(rewardRoute, veloSpacing);
         path0 = routeToPath(lpToken0ToNative, spacing);
-        path1 = '0x'; //routeToPath(lpToken1ToNative, fees);
+        path1 = "0x"; //routeToPath(lpToken1ToNative, fees);
         tradePath = routeToPath(tradeRoute, spacing);
 
         // Init the the strategy and vault
-        StratFeeManagerInitializable.CommonAddresses memory commonAddresses = StratFeeManagerInitializable.CommonAddresses(
-            address(vault),
-            unirouter,
-            strategist,
-            address(factory)
-        );
+        StratFeeManagerInitializable.CommonAddresses
+            memory commonAddresses = StratFeeManagerInitializable
+                .CommonAddresses(
+                    address(vault),
+                    unirouter,
+                    strategist,
+                    address(factory)
+                );
 
-        factory.addStrategy("StrategyPassiveManagerVelodrome_v1", address(implementation));
+        factory.addStrategy(
+            "StrategyPassiveManagerVelodrome_v1",
+            address(implementation)
+        );
 
         bytes[] memory paths = new bytes[](3);
         paths[0] = rewardPath;
         paths[1] = path0;
         paths[2] = path1;
-       
-        address _strategy = factory.createStrategy("StrategyPassiveManagerVelodrome_v1");
+
+        address _strategy = factory.createStrategy(
+            "StrategyPassiveManagerVelodrome_v1"
+        );
         strategy = StrategyPassiveManagerVelodrome(_strategy);
+        console.log("Before initializing strategy");
         strategy.initialize(
-            pool, 
+            pool,
             quoter,
             nftManager,
             gauge,
             address(rewardPool),
             output,
             width,
-            paths, 
+            paths,
             commonAddresses
         );
+        console.log("After initializing strategy");
 
         rewardPool.setWhitelist(address(strategy), true);
 
@@ -143,21 +166,22 @@ contract ConLiqVelodromeTest is Test {
     }
 
     function test_deposit() public {
-        vm.startPrank(user); 
+        vm.startPrank(user);
         deal(address(token0), user, token0Size);
         deal(address(token1), user, token1Size);
 
         IERC20(token0).forceApprove(address(vault), token0Size);
         IERC20(token1).forceApprove(address(vault), token1Size);
 
-        // Test preview and use this as min expected output on deposit. 
-        (uint _shares, uint256 _amount0, uint256 _amount1) = vault.previewDeposit(token0Size, token1Size);
+        // Test preview and use this as min expected output on deposit.
+        (uint _shares, uint256 _amount0, uint256 _amount1) = vault
+            .previewDeposit(token0Size, token1Size);
         vault.deposit(_amount0, _amount1, _shares);
 
         uint256 shares = vault.balanceOf(user);
         console.log("User Shares :", shares);
 
-        // assert the balances of the vault is equal to the deposit amount 
+        // assert the balances of the vault is equal to the deposit amount
         (uint256 bal0, uint256 bal1) = vault.balances();
         assertApproxEqAbs(bal0, token0Size, 2);
         assertApproxEqAbs(bal1, token1Size, 2);
@@ -165,14 +189,17 @@ contract ConLiqVelodromeTest is Test {
     }
 
     function test_twoUserDeposit() public {
-        vm.startPrank(user); 
+        vm.startPrank(user);
         deal(address(token0), user, token0Size);
         deal(address(token1), user, token1Size);
 
         IERC20(token0).forceApprove(address(vault), token0Size);
         IERC20(token1).forceApprove(address(vault), token1Size);
 
-        (uint _shares, uint _amount0, uint _amount1) = vault.previewDeposit(token0Size, token1Size);
+        (uint _shares, uint _amount0, uint _amount1) = vault.previewDeposit(
+            token0Size,
+            token1Size
+        );
         vault.deposit(_amount0, _amount1, _shares);
 
         uint256 shares = vault.balanceOf(user);
@@ -192,7 +219,10 @@ contract ConLiqVelodromeTest is Test {
         IERC20(token0).forceApprove(address(vault), token0Size / 2);
         IERC20(token1).forceApprove(address(vault), token1Size / 2);
 
-        (_shares, _amount0, _amount1) = vault.previewDeposit(token0Size / 2,  token1Size / 2);
+        (_shares, _amount0, _amount1) = vault.previewDeposit(
+            token0Size / 2,
+            token1Size / 2
+        );
         vault.deposit(_amount0, _amount1, _shares);
 
         shares = vault.balanceOf(keeper);
@@ -202,14 +232,17 @@ contract ConLiqVelodromeTest is Test {
     }
 
     function test_withdraw() public {
-        vm.startPrank(user); 
+        vm.startPrank(user);
         deal(address(token0), user, token0Size);
         deal(address(token1), user, token1Size);
 
         IERC20(token0).forceApprove(address(vault), token0Size);
         IERC20(token1).forceApprove(address(vault), token1Size);
 
-        (uint256 _shares, uint _amount0, uint _amount1) = vault.previewDeposit(token0Size, token1Size);
+        (uint256 _shares, uint _amount0, uint _amount1) = vault.previewDeposit(
+            token0Size,
+            token1Size
+        );
         vault.deposit(_amount0, _amount1, _shares);
 
         (uint256 bal0, uint256 bal1) = vault.balances();
@@ -233,19 +266,22 @@ contract ConLiqVelodromeTest is Test {
     }
 
     function test_harvest() public {
-        vm.startPrank(user); 
-      
+        vm.startPrank(user);
+
         deal(address(token0), user, token0Size);
         deal(address(token1), user, token1Size);
 
         IERC20(token0).forceApprove(address(vault), token0Size);
         IERC20(token1).forceApprove(address(vault), token1Size);
 
-        (uint256 _shares, uint _amount0, uint _amount1) = vault.previewDeposit(token0Size, token1Size);
+        (uint256 _shares, uint _amount0, uint _amount1) = vault.previewDeposit(
+            token0Size,
+            token1Size
+        );
         vault.deposit(_amount0, _amount1, _shares);
 
         (uint256 bal0, uint256 bal1) = vault.balances();
-        assertApproxEqAbs(bal0,  token0Size, 2);
+        assertApproxEqAbs(bal0, token0Size, 2);
         assertApproxEqAbs(bal1, token1Size, 2);
 
         deal(address(token0), user, token0Size);
@@ -271,8 +307,8 @@ contract ConLiqVelodromeTest is Test {
         strategy.harvest();
 
         skip(1 days);
-     
-       // (, ,uint256 main0,uint256 main1,uint256 alt0,uint256 alt1) = strategy.balancesOfPool();
+
+        // (, ,uint256 main0,uint256 main1,uint256 alt0,uint256 alt1) = strategy.balancesOfPool();
 
         vm.stopPrank();
 
@@ -283,7 +319,10 @@ contract ConLiqVelodromeTest is Test {
         IERC20(token0).forceApprove(address(vault), token0Size);
         IERC20(token1).forceApprove(address(vault), token1Size);
 
-        (_shares, _amount0, _amount1) = vault.previewDeposit(token0Size, token1Size); 
+        (_shares, _amount0, _amount1) = vault.previewDeposit(
+            token0Size,
+            token1Size
+        );
         vault.deposit(_amount0, _amount1, _shares);
 
         IERC20(token0).forceApprove(address(unirouter), token0Size);
@@ -304,30 +343,33 @@ contract ConLiqVelodromeTest is Test {
     }
 
     function test_malicious_behavior() public {
-        vm.startPrank(user); 
-      
+        vm.startPrank(user);
+
         deal(address(token0), user, token0Size * 2);
         deal(address(token1), user, token1Size * 2);
 
         IERC20(token0).forceApprove(address(vault), type(uint256).max);
         IERC20(token1).forceApprove(address(vault), type(uint256).max);
 
-        (uint256 _shares, uint _amount0, uint _amount1) = vault.previewDeposit(token0Size, token1Size);
+        (uint256 _shares, uint _amount0, uint _amount1) = vault.previewDeposit(
+            token0Size,
+            token1Size
+        );
         vault.deposit(_amount0, _amount1, _shares);
 
         // Test panic on malicious behavior
-        vm.expectRevert(NotManager.selector); 
-        strategy.panic(0,0);
+        vm.expectRevert(NotManager.selector);
+        strategy.panic(0, 0);
 
         vm.stopPrank();
         vm.startPrank(keeper);
 
-        strategy.panic(0,0);
+        strategy.panic(0, 0);
 
         vm.stopPrank();
         vm.startPrank(user);
 
-        vault.withdrawAll(0,0);
+        vault.withdrawAll(0, 0);
 
         vm.expectRevert(StrategyPaused.selector);
         vault.deposit(token0Size, token1Size, 0);
@@ -339,10 +381,10 @@ contract ConLiqVelodromeTest is Test {
 
         vm.stopPrank();
         vm.startPrank(user);
-        
+
         vault.deposit(token0Size, token1Size, 0);
 
-        vault.withdrawAll(0,0);
+        vault.withdrawAll(0, 0);
 
         vm.stopPrank();
         vm.startPrank(keeper);
@@ -366,19 +408,24 @@ contract ConLiqVelodromeTest is Test {
 
         vault.deposit(token0Size, token1Size, 0);
 
-        vm.expectRevert("Ownable: caller is not the owner"); 
+        vm.expectRevert("Ownable: caller is not the owner");
         strategy.setPositionWidth(1000);
 
         vm.expectRevert(NotVault.selector);
         strategy.deposit();
 
         //vm.expectRevert(NotCalm.selector);
-        vault.withdrawAll(0,0);
+        vault.withdrawAll(0, 0);
 
         vm.startPrank(factory.owner());
         StrategyPassiveManagerVelodrome newImpl = new StrategyPassiveManagerVelodrome();
-        factory.upgradeTo("StrategyPassiveManagerVelodrome_v1", address(newImpl));
-        address impl = factory.getImplementation("StrategyPassiveManagerVelodrome_v1");
+        factory.upgradeTo(
+            "StrategyPassiveManagerVelodrome_v1",
+            address(newImpl)
+        );
+        address impl = factory.getImplementation(
+            "StrategyPassiveManagerVelodrome_v1"
+        );
         assertEq(impl, address(newImpl));
         vm.stopPrank();
     }
@@ -392,7 +439,7 @@ contract ConLiqVelodromeTest is Test {
         path = abi.encodePacked(_route[0]);
         uint256 feeLength = _fee.length;
         for (uint256 i = 0; i < feeLength; i++) {
-            path = abi.encodePacked(path, _fee[i], _route[i+1]);
+            path = abi.encodePacked(path, _fee[i], _route[i + 1]);
         }
     }
 }

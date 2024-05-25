@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
+import {Test, console} from "forge-std/Test.sol";
+
 import {IERC20Metadata} from "@openzeppelin-4/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC721} from "@openzeppelin-4/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin-4/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -25,7 +27,11 @@ import {UniV3Utils} from "../../utils/UniV3Utils.sol";
 /// @title Beefy Passive Position Manager. Version: Velodrome
 /// @author weso, Beefy
 /// @notice This is a contract for managing a passive concentrated liquidity position on Velodrome.
-contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrategyConcLiq, IStrategyVelodrome {
+contract StrategyPassiveManagerVelodrome is
+    StratFeeManagerInitializable,
+    IStrategyConcLiq,
+    IStrategyVelodrome
+{
     using SafeERC20 for IERC20Metadata;
     using TickMath for int24;
 
@@ -40,21 +46,21 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     /// @notice The address of the Velodrome pool.
     address public pool;
     /// @notice The address of the quoter.
-    //audit-info What's the quoter ? 
+    //audit-info What's the quoter ?
     address public quoter;
     /// @notice The address of the NFT position manager.
     address public nftManager;
-    /// @notice The address of the gauge. 
-    //audit-info What's the gauge ? 
+    /// @notice The address of the gauge.
+    //audit-info What's the gauge ?
     address public gauge;
-    /// @notice The address of the output. 
+    /// @notice The address of the output.
     address public output;
     /// @notice The address of the first token in the liquidity pool.
     address public lpToken0;
     /// @notice The address of the second token in the liquidity pool.
     address public lpToken1;
     /// @notice The address of the rewardPool.
-    //audit-info What's the reward pool ? 
+    //audit-info What's the reward pool ?
     address public rewardPool;
 
     /// @notice The amount of unharvested output in the strategy.
@@ -80,25 +86,25 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
     /// @notice The alternative position of the strategy.
     /// @dev this will always be a single sided (limit order) position that will start closest to current tick and continue to width * tickSpacing.
-    /// This will always be in the token that has the most value after we fill our main position. 
+    /// This will always be in the token that has the most value after we fill our main position.
     //audit Invariant: Alternative Position SHOULD always be in the token that has the most value
     Position public positionAlt;
 
-    /// @notice The width of the position, thats a multiplier for tick spacing to find our range. 
-    //audit-info Who set's that and can it be modify ? In what term ?  
+    /// @notice The width of the position, thats a multiplier for tick spacing to find our range.
+    //audit-info Who set's that and can it be modify ? In what term ?
     int24 public positionWidth;
 
     /// @notice the max tick deviations we will allow for deposits/setTick.
-    //audit-info Who set's that and can it be modify ? In what term ?  
+    //audit-info Who set's that and can it be modify ? In what term ?
     int56 public maxTickDeviation;
 
-    /// @notice The twap interval seconds we use for the twap check. 
+    /// @notice The twap interval seconds we use for the twap check.
     uint32 public twapInterval;
 
-    /// @notice Initializes the ticks on first deposit. 
+    /// @notice Initializes the ticks on first deposit.
     bool private initTicks;
 
-    // Errors 
+    // Errors
     error NotAuthorized();
     error NotPool();
     error InvalidEntry();
@@ -116,10 +122,14 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     event SetTwapInterval(uint32 oldInterval, uint32 interval);
     event SetOutputToNativePath(bytes path);
     event SetRewardPool(address rewardPool);
-    event ChargedFees(uint256 callFeeAmount, uint256 beefyFeeAmount, uint256 strategistFeeAmount);
+    event ChargedFees(
+        uint256 callFeeAmount,
+        uint256 beefyFeeAmount,
+        uint256 strategistFeeAmount
+    );
     event ClaimedFees(uint256 fees);
- 
-     /// @notice Modifier to only allow deposit/setTick actions when current price is within a certain deviation of twap.
+
+    /// @notice Modifier to only allow deposit/setTick actions when current price is within a certain deviation of twap.
     modifier onlyCalmPeriods() {
         _onlyCalmPeriods();
         _;
@@ -132,7 +142,8 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
     //audit-info Assuming the rebalancer is the Gelato bot
     modifier onlyRebalancers() {
-        if (!IStrategyFactory(factory).rebalancers(msg.sender)) revert NotAuthorized();
+        if (!IStrategyFactory(factory).rebalancers(msg.sender))
+            revert NotAuthorized();
         _;
     }
 
@@ -142,11 +153,15 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         int24 tick = currentTick();
         int56 twapTick = twap();
 
-        int56 minCalmTick = int56(SignedMath.max(twapTick - maxTickDeviation, MIN_TICK));
-        int56 maxCalmTick = int56(SignedMath.min(twapTick + maxTickDeviation, MAX_TICK));
+        int56 minCalmTick = int56(
+            SignedMath.max(twapTick - maxTickDeviation, MIN_TICK)
+        );
+        int56 maxCalmTick = int56(
+            SignedMath.min(twapTick + maxTickDeviation, MAX_TICK)
+        );
 
-        // Calculate if tick move more than allowed from twap and revert if it did. 
-        if(minCalmTick > tick  || maxCalmTick < tick) return false;
+        // Calculate if tick move more than allowed from twap and revert if it did.
+        if (minCalmTick > tick || maxCalmTick < tick) return false;
         else return true;
     }
 
@@ -160,13 +175,13 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
      * @param _paths The bytes paths for swapping (Output To Native, Token0 to Native, Token1 to Native).
      * @param _commonAddresses The common addresses needed for the strat fee manager.
      */
-    function initialize (
+    function initialize(
         address _pool,
         address _quoter,
         address _nftManager,
         address _gauge,
         address _rewardPool,
-        address _output, 
+        address _output,
         int24 _positionWidth,
         bytes[] calldata _paths,
         CommonAddresses calldata _commonAddresses
@@ -178,8 +193,14 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         output = _output;
         nftManager = _nftManager;
         gauge = _gauge;
-        rewardPool = _rewardPool;   
+        rewardPool = _rewardPool;
+
+       
+        
+
+        console.log("token0 should be 0:", lpToken0);
         lpToken0 = IVeloPool(_pool).token0();
+        console.log("token0 address:", lpToken0);
         lpToken1 = IVeloPool(_pool).token1();
 
         // Our width multiplier. The tick distance of each side will be width * tickSpacing.
@@ -188,17 +209,16 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         outputToNativePath = _paths[0];
         lpToken0ToNativePath = _paths[1];
         lpToken1ToNativePath = _paths[2];
-    
+
         // Set the twap interval to 120 seconds.
         twapInterval = 120;
 
         _giveAllowances();
-    
     }
 
     /// @notice Only allows the vault to call a function.
-    //audit Can the vault address be changed ? 
-    function _onlyVault () private view {
+    //audit Can the vault address be changed ?
+    function _onlyVault() private view {
         if (msg.sender != vault) revert NotVault();
     }
 
@@ -209,7 +229,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         _removeLiquidity();
     }
 
-    /// @notice Called during deposit to add all liquidity back to their positions. 
+    /// @notice Called during deposit to add all liquidity back to their positions.
     function deposit() external onlyCalmPeriods {
         _onlyVault();
 
@@ -220,7 +240,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
         // Add all liquidity
         _addLiquidity();
-        
+
         (uint256 bal0, uint256 bal1) = balances();
 
         // TVL Balances after deposit
@@ -236,10 +256,12 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         _onlyVault();
 
         // Liquidity has already been removed in beforeAction() so this is just a simple withdraw.
-        if (_amount0 > 0) IERC20Metadata(lpToken0).safeTransfer(vault, _amount0);
-        if (_amount1 > 0) IERC20Metadata(lpToken1).safeTransfer(vault, _amount1);
+        if (_amount0 > 0)
+            IERC20Metadata(lpToken0).safeTransfer(vault, _amount0);
+        if (_amount1 > 0)
+            IERC20Metadata(lpToken1).safeTransfer(vault, _amount1);
 
-        // After we take what is needed we add it all back to our positions. 
+        // After we take what is needed we add it all back to our positions.
         if (!_isPaused()) _addLiquidity();
 
         (uint256 bal0, uint256 bal1) = balances();
@@ -250,16 +272,16 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
     /// @notice Adds liquidity to the main and alternative positions called on deposit, harvest and withdraw.
     function _addLiquidity() private {
-        _whenStrategyNotPaused(); //revert if the Stategy is Paused 
+        _whenStrategyNotPaused(); //revert if the Stategy is Paused
 
         (uint256 bal0, uint256 bal1) = balancesOfThis();
 
         int24 mainLower = positionMain.tickLower; //get the tick Lower of Main position
         int24 mainUpper = positionMain.tickUpper; //get the tick Upper of Main position
-        int24 altLower = positionAlt.tickLower;   //get the tick Lower of Alt position
-        int24 altUpper = positionAlt.tickUpper;   //get the tick Upper of Alt position  
+        int24 altLower = positionAlt.tickLower; //get the tick Lower of Alt position
+        int24 altUpper = positionAlt.tickUpper; //get the tick Upper of Alt position
 
-        // Then we fetch how much liquidity we get for adding at the main position ticks with our token balances. 
+        // Then we fetch how much liquidity we get for adding at the main position ticks with our token balances.
         uint160 sqrtprice = sqrtPrice();
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtprice,
@@ -269,16 +291,17 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
             bal1
         );
 
-        (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
-            sqrtprice,
-            TickMath.getSqrtRatioAtTick(mainLower),
-            TickMath.getSqrtRatioAtTick(mainUpper),
-            liquidity
-        );
+        (uint256 amount0, uint256 amount1) = LiquidityAmounts
+            .getAmountsForLiquidity(
+                sqrtprice,
+                TickMath.getSqrtRatioAtTick(mainLower),
+                TickMath.getSqrtRatioAtTick(mainUpper),
+                liquidity
+            );
 
         bool amountsOk = _checkAmounts(liquidity, mainLower, mainUpper);
 
-        // Mint or add liquidity to the position. 
+        // Mint or add liquidity to the position.
         if (liquidity > 0 && amountsOk) {
             //audit-info Mint position if the user has some liquidity in main
             _mintPosition(mainLower, mainUpper, amount0, amount1, true);
@@ -304,32 +327,42 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
         // Mint or add liquidity to the position.
         if (liquidity > 0 && (amount0 > 0 || amount1 > 0)) {
-             //audit-info Mint position if the user has some liquidity in alt
+            //audit-info Mint position if the user has some liquidity in alt
             _mintPosition(altLower, altUpper, amount0, amount1, false);
         }
 
-        if (positionMain.nftId != 0) ICLGauge(gauge).deposit(positionMain.nftId);
+        if (positionMain.nftId != 0)
+            ICLGauge(gauge).deposit(positionMain.nftId);
         if (positionAlt.nftId != 0) ICLGauge(gauge).deposit(positionAlt.nftId);
     }
 
     /// @notice Mints a new position for the main or alternative position.
-    function _mintPosition(int24 _tickLower, int24 _tickUpper, uint256 _amount0, uint256 _amount1, bool _mainPosition) private {
-        INftPositionManager.MintParams memory mintParams = INftPositionManager.MintParams({
-            token0: lpToken0,
-            token1: lpToken1,
-            tickSpacing: _tickDistance(),
-            tickLower: _tickLower,
-            tickUpper: _tickUpper,
-            amount0Desired: _amount0,
-            amount1Desired: _amount1,
-            amount0Min: 0,
-            amount1Min: 0,
-            recipient: address(this),
-            deadline: block.timestamp,
-            sqrtPriceX96: 0
-        });
+    function _mintPosition(
+        int24 _tickLower,
+        int24 _tickUpper,
+        uint256 _amount0,
+        uint256 _amount1,
+        bool _mainPosition
+    ) private {
+        INftPositionManager.MintParams memory mintParams = INftPositionManager
+            .MintParams({
+                token0: lpToken0,
+                token1: lpToken1,
+                tickSpacing: _tickDistance(),
+                tickLower: _tickLower,
+                tickUpper: _tickUpper,
+                amount0Desired: _amount0,
+                amount1Desired: _amount1,
+                amount0Min: 0,
+                amount1Min: 0,
+                recipient: address(this),
+                deadline: block.timestamp,
+                sqrtPriceX96: 0
+            });
 
-        (uint256 nftId,,,) = INftPositionManager(nftManager).mint(mintParams);
+        (uint256 nftId, , , ) = INftPositionManager(nftManager).mint(
+            mintParams
+        );
 
         if (_mainPosition) positionMain.nftId = nftId;
         else positionAlt.nftId = nftId;
@@ -342,30 +375,35 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         uint128 liquidity;
         uint128 liquidityAlt;
         if (positionMain.nftId != 0) {
-            (,,,,,,,liquidity,,,,) = INftPositionManager(nftManager).positions(positionMain.nftId);
+            (, , , , , , , liquidity, , , , ) = INftPositionManager(nftManager)
+                .positions(positionMain.nftId);
             ICLGauge(gauge).withdraw(positionMain.nftId);
-        } 
+        }
 
         if (positionAlt.nftId != 0) {
-            (,,,,,,,liquidityAlt,,,,) = INftPositionManager(nftManager).positions(positionAlt.nftId);
+            (, , , , , , , liquidityAlt, , , , ) = INftPositionManager(
+                nftManager
+            ).positions(positionAlt.nftId);
             ICLGauge(gauge).withdraw(positionAlt.nftId);
         }
 
         // init our params
-        INftPositionManager.DecreaseLiquidityParams memory decreaseLiquidityParams;
+        INftPositionManager.DecreaseLiquidityParams
+            memory decreaseLiquidityParams;
         INftPositionManager.CollectParams memory collectParams;
 
         // If we have liquidity in the positions we remove it and collect our tokens.
         if (liquidity > 0) {
-            decreaseLiquidityParams = INftPositionManager.DecreaseLiquidityParams({
-                tokenId: positionMain.nftId,
-                liquidity: liquidity,
-                amount0Min: 0,
-                amount1Min: 0,
-                deadline: block.timestamp
-            });
-        //audit Is it possible to have 0 liquidity and still have some fees left to collect ? 
-        //audit If that's the case, the fees aren't collected, and the positions isn't burn.
+            decreaseLiquidityParams = INftPositionManager
+                .DecreaseLiquidityParams({
+                    tokenId: positionMain.nftId,
+                    liquidity: liquidity,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    deadline: block.timestamp
+                });
+            //audit Is it possible to have 0 liquidity and still have some fees left to collect ?
+            //audit If that's the case, the fees aren't collected, and the positions isn't burn.
             collectParams = INftPositionManager.CollectParams({
                 tokenId: positionMain.nftId,
                 recipient: address(this),
@@ -373,21 +411,23 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
                 amount1Max: type(uint128).max
             });
 
-            INftPositionManager(nftManager).decreaseLiquidity(decreaseLiquidityParams);
+            INftPositionManager(nftManager).decreaseLiquidity(
+                decreaseLiquidityParams
+            );
             INftPositionManager(nftManager).collect(collectParams);
             INftPositionManager(nftManager).burn(positionMain.nftId);
             positionMain.nftId = 0;
-            
         }
 
         if (liquidityAlt > 0) {
-            decreaseLiquidityParams = INftPositionManager.DecreaseLiquidityParams({
-                tokenId: positionAlt.nftId,
-                liquidity: liquidityAlt,
-                amount0Min: 0,
-                amount1Min: 0,
-                deadline: block.timestamp
-            });
+            decreaseLiquidityParams = INftPositionManager
+                .DecreaseLiquidityParams({
+                    tokenId: positionAlt.nftId,
+                    liquidity: liquidityAlt,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    deadline: block.timestamp
+                });
 
             collectParams = INftPositionManager.CollectParams({
                 tokenId: positionAlt.nftId,
@@ -396,11 +436,12 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
                 amount1Max: type(uint128).max
             });
 
-            INftPositionManager(nftManager).decreaseLiquidity(decreaseLiquidityParams);
+            INftPositionManager(nftManager).decreaseLiquidity(
+                decreaseLiquidityParams
+            );
             INftPositionManager(nftManager).collect(collectParams);
             INftPositionManager(nftManager).burn(positionAlt.nftId);
             positionAlt.nftId = 0;
-            
         }
     }
 
@@ -411,19 +452,24 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
      * @param _tickUpper The upper tick of the position.
      * @return bool True if the amounts are ok, false if not.
      */
-    function _checkAmounts(uint128 _liquidity, int24 _tickLower, int24 _tickUpper) private view returns (bool) {
-        (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
-            sqrtPrice(),
-            TickMath.getSqrtRatioAtTick(_tickLower),
-            TickMath.getSqrtRatioAtTick(_tickUpper),
-            _liquidity
-        );
+    function _checkAmounts(
+        uint128 _liquidity,
+        int24 _tickLower,
+        int24 _tickUpper
+    ) private view returns (bool) {
+        (uint256 amount0, uint256 amount1) = LiquidityAmounts
+            .getAmountsForLiquidity(
+                sqrtPrice(),
+                TickMath.getSqrtRatioAtTick(_tickLower),
+                TickMath.getSqrtRatioAtTick(_tickUpper),
+                _liquidity
+            );
 
         if (amount0 == 0 || amount1 == 0) return false;
         else return true;
     }
 
-    /// @notice Function called to rebalance the position 
+    /// @notice Function called to rebalance the position
     function moveTicks() external onlyCalmPeriods onlyRebalancers {
         _claimEarnings();
         _removeLiquidity();
@@ -441,27 +487,27 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     }
 
     /// @notice Harvest call to claim rewards from gauge then charge fees for Beefy and notify rewards.
-    /// @dev Call fee goes to the tx.origin. 
+    /// @dev Call fee goes to the tx.origin.
     function harvest() external {
         //audit-info Why not use msg.sender ? Account Abstraction EIP4337 is not compatible
         _harvest(tx.origin);
     }
 
     /// @notice Internal function to claim rewards from gauge then charge fees for Beefy and notify rewards
-    function _harvest (address _callFeeRecipient) private {
+    function _harvest(address _callFeeRecipient) private {
         // Claim rewards from gauge
         _claimEarnings();
 
         // Charge fees for Beefy and send them to the appropriate addresses, charge fees to accrued state fee amounts.
-        (uint256 feeLeft) = _chargeFees(_callFeeRecipient, fees);
+        uint256 feeLeft = _chargeFees(_callFeeRecipient, fees);
 
-        // Reset state fees to 0. 
+        // Reset state fees to 0.
         fees = 0;
 
-        // Notify rewards with our velo. 
+        // Notify rewards with our velo.
         IRewardPool(rewardPool).notifyRewardAmount(output, feeLeft, 1 days);
 
-        // Log the last time we claimed fees. 
+        // Log the last time we claimed fees.
         lastHarvest = block.timestamp;
 
         // Log the fees post Beefy fees.
@@ -474,10 +520,13 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         uint256 feeBefore = IERC20Metadata(output).balanceOf(address(this));
 
         //audit-info How this is working ? Is this contract suppose to receive some tokens ?
-        if (positionMain.nftId != 0) ICLGauge(gauge).getReward(positionMain.nftId);
-        if (positionAlt.nftId != 0) ICLGauge(gauge).getReward(positionAlt.nftId);
+        if (positionMain.nftId != 0)
+            ICLGauge(gauge).getReward(positionMain.nftId);
+        if (positionAlt.nftId != 0)
+            ICLGauge(gauge).getReward(positionAlt.nftId);
 
-        uint256 claimed = IERC20Metadata(output).balanceOf(address(this)) - feeBefore;
+        uint256 claimed = IERC20Metadata(output).balanceOf(address(this)) -
+            feeBefore;
         fees = fees + claimed;
 
         emit ClaimedFees(claimed);
@@ -489,7 +538,10 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
      * @param _amount The amount of output to charge fees on.
      * @return _amountLeft The amount of token0 left after fees.
      */
-    function _chargeFees(address _callFeeRecipient, uint256 _amount) private returns (uint256 _amountLeft){
+    function _chargeFees(
+        address _callFeeRecipient,
+        uint256 _amount
+    ) private returns (uint256 _amountLeft) {
         /// Fetch our fee percentage amounts from the fee config.
         IFeeConfig.FeeCategory memory fee = getFees();
 
@@ -497,43 +549,61 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         uint256 nativeEarned;
         if (_amount > 0) {
             // Calculate amount of token 0 to swap for fees.
-            uint256 amountToSwap = _amount * fee.total / DIVISOR;
+            uint256 amountToSwap = (_amount * fee.total) / DIVISOR;
             _amountLeft = _amount - amountToSwap;
-            
+
             // If token0 is not native, swap to native the fee amount.
             uint256 out;
-            uint256 nativeBefore = IERC20Metadata(native).balanceOf(address(this));
+            uint256 nativeBefore = IERC20Metadata(native).balanceOf(
+                address(this)
+            );
             if (output != native) {
-                VeloSwapUtils.swap(unirouter, outputToNativePath, amountToSwap, true);
-                out = IERC20Metadata(native).balanceOf(address(this)) - nativeBefore;
+                VeloSwapUtils.swap(
+                    unirouter,
+                    outputToNativePath,
+                    amountToSwap,
+                    true
+                );
+                out =
+                    IERC20Metadata(native).balanceOf(address(this)) -
+                    nativeBefore;
             }
-            
+
             // Add the native earned to the total of native we earned for beefy fees, handle if token0 is native.
-            if (output == native)  nativeEarned += amountToSwap;
+            if (output == native) nativeEarned += amountToSwap;
             else nativeEarned += out;
         }
 
         // Distribute the native earned to the appropriate addresses.
-        uint256 callFeeAmount = nativeEarned * fee.call / DIVISOR;
+        uint256 callFeeAmount = (nativeEarned * fee.call) / DIVISOR;
         IERC20Metadata(native).safeTransfer(_callFeeRecipient, callFeeAmount);
 
-        uint256 strategistFeeAmount = nativeEarned * fee.strategist / DIVISOR;
+        uint256 strategistFeeAmount = (nativeEarned * fee.strategist) / DIVISOR;
         IERC20Metadata(native).safeTransfer(strategist, strategistFeeAmount);
 
-        uint256 beefyFeeAmount = nativeEarned - callFeeAmount - strategistFeeAmount;
-        IERC20Metadata(native).safeTransfer(beefyFeeRecipient(), beefyFeeAmount);
+        uint256 beefyFeeAmount = nativeEarned -
+            callFeeAmount -
+            strategistFeeAmount;
+        IERC20Metadata(native).safeTransfer(
+            beefyFeeRecipient(),
+            beefyFeeAmount
+        );
 
         emit ChargedFees(callFeeAmount, beefyFeeAmount, strategistFeeAmount);
     }
 
-    /** 
+    /**
      * @notice Returns total token balances in the strategy.
      * @return token0Bal The amount of token0 in the strategy.
      * @return token1Bal The amount of token1 in the strategy.
-    */
-    function balances() public view returns (uint256 token0Bal, uint256 token1Bal) {
+     */
+    function balances()
+        public
+        view
+        returns (uint256 token0Bal, uint256 token1Bal)
+    {
         (uint256 thisBal0, uint256 thisBal1) = balancesOfThis();
-        (uint256 poolBal0, uint256 poolBal1,,,,) = balancesOfPool();
+        (uint256 poolBal0, uint256 poolBal1, , , , ) = balancesOfPool();
 
         uint256 total0 = thisBal0 + poolBal0;
         uint256 total1 = thisBal1 + poolBal1;
@@ -546,31 +616,66 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
      * @notice Returns total tokens sitting in the strategy.
      * @return token0Bal The amount of token0 in the strategy.
      * @return token1Bal The amount of token1 in the strategy.
-    */
-    function balancesOfThis() public view returns (uint256 token0Bal, uint256 token1Bal) {
-        return (IERC20Metadata(lpToken0).balanceOf(address(this)), IERC20Metadata(lpToken1).balanceOf(address(this)));
+     */
+    function balancesOfThis()
+        public
+        view
+        returns (uint256 token0Bal, uint256 token1Bal)
+    {
+        return (
+            IERC20Metadata(lpToken0).balanceOf(address(this)),
+            IERC20Metadata(lpToken1).balanceOf(address(this))
+        );
     }
 
-    /** 
-     * @notice Returns total tokens in pool positions (is a calculation which means it could be a little off by a few wei). 
+    /**
+     * @notice Returns total tokens in pool positions (is a calculation which means it could be a little off by a few wei).
      * @return token0Bal The amount of token0 in the pool.
      * @return token1Bal The amount of token1 in the pool.
      * @return mainAmount0 The amount of token0 in the main position.
      * @return mainAmount1 The amount of token1 in the main position.
      * @return altAmount0 The amount of token0 in the alt position.
      * @return altAmount1 The amount of token1 in the alt position.
-    */
-    function balancesOfPool() public view returns (uint256 token0Bal, uint256 token1Bal, uint256 mainAmount0, uint256 mainAmount1, uint256 altAmount0, uint256 altAmount1) {
+     */
+    function balancesOfPool()
+        public
+        view
+        returns (
+            uint256 token0Bal,
+            uint256 token1Bal,
+            uint256 mainAmount0,
+            uint256 mainAmount1,
+            uint256 altAmount0,
+            uint256 altAmount1
+        )
+    {
         uint160 sqrtPriceX96 = sqrtPrice();
 
-        uint128 liquidity; 
+        uint128 liquidity;
         uint128 altLiquidity;
         uint256 owed0;
         uint256 owed1;
         uint256 altOwed0;
         uint256 altOwed1;
-        if (positionMain.nftId != 0) (,,,,,,,liquidity,,,owed0, owed1) = INftPositionManager(nftManager).positions(positionMain.nftId);
-        if (positionAlt.nftId != 0) (,,,,,,, altLiquidity,,,altOwed0, altOwed1) = INftPositionManager(nftManager).positions(positionAlt.nftId);
+        if (positionMain.nftId != 0)
+            (, , , , , , , liquidity, , , owed0, owed1) = INftPositionManager(
+                nftManager
+            ).positions(positionMain.nftId);
+        if (positionAlt.nftId != 0)
+            (
+                ,
+                ,
+                ,
+                ,
+                ,
+                ,
+                ,
+                altLiquidity,
+                ,
+                ,
+                altOwed0,
+                altOwed1
+            ) = INftPositionManager(nftManager).positions(positionAlt.nftId);
 
         (mainAmount0, mainAmount1) = LiquidityAmounts.getAmountsForLiquidity(
             sqrtPriceX96,
@@ -580,7 +685,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         );
 
         (altAmount0, altAmount1) = LiquidityAmounts.getAmountsForLiquidity(
-            sqrtPriceX96,   
+            sqrtPriceX96,
             TickMath.getSqrtRatioAtTick(positionAlt.tickLower),
             TickMath.getSqrtRatioAtTick(positionAlt.tickUpper),
             altLiquidity
@@ -591,54 +696,72 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
         altAmount0 += altOwed0;
         altAmount1 += altOwed1;
-        
+
         token0Bal = mainAmount0 + altAmount0;
         token1Bal = mainAmount1 + altAmount1;
     }
-    
+
     /**
      * @notice Returns the range of the pool, will always be the main position.
      * @return lowerPrice The lower price of the position.
      * @return upperPrice The upper price of the position.
-    */
-    function range() external view returns (uint256 lowerPrice, uint256 upperPrice) {
+     */
+    function range()
+        external
+        view
+        returns (uint256 lowerPrice, uint256 upperPrice)
+    {
         // the main position is always covering the alt range
-        lowerPrice = FullMath.mulDiv(uint256(TickMath.getSqrtRatioAtTick(positionMain.tickLower)), SQRT_PRECISION, (2 ** 96)) ** 2;
-        upperPrice = FullMath.mulDiv(uint256(TickMath.getSqrtRatioAtTick(positionMain.tickUpper)), SQRT_PRECISION, (2 ** 96)) ** 2;
+        lowerPrice =
+            FullMath.mulDiv(
+                uint256(TickMath.getSqrtRatioAtTick(positionMain.tickLower)),
+                SQRT_PRECISION,
+                (2 ** 96)
+            ) **
+                2;
+        upperPrice =
+            FullMath.mulDiv(
+                uint256(TickMath.getSqrtRatioAtTick(positionMain.tickUpper)),
+                SQRT_PRECISION,
+                (2 ** 96)
+            ) **
+                2;
     }
 
     /**
      * @notice The current tick of the pool.
      * @return tick The current tick of the pool.
-    */
+     */
     function currentTick() public view returns (int24 tick) {
-        //audit Is the current tick can be manipulable like the spot price ? 
-        (,tick,,,,) = IVeloPool(pool).slot0();
+        //audit Is the current tick can be manipulable like the spot price ?
+        (, tick, , , , ) = IVeloPool(pool).slot0();
     }
 
     /**
      * @notice The current price of the pool.
      * @return _price The current price of the pool.
-    */
+     */
     function price() public view returns (uint256 _price) {
         uint160 sqrtPriceX96 = sqrtPrice();
-        _price = FullMath.mulDiv(uint256(sqrtPriceX96), SQRT_PRECISION, (2 ** 96)) ** 2;
+        _price =
+            FullMath.mulDiv(uint256(sqrtPriceX96), SQRT_PRECISION, (2 ** 96)) **
+                2;
     }
 
     /**
      * @notice The sqrt price of the pool.
      * @return sqrtPriceX96 The sqrt price of the pool.
-    */
+     */
 
     //audit Watchout, Can be easily manipulated
     function sqrtPrice() public view returns (uint160 sqrtPriceX96) {
-        (sqrtPriceX96,,,,,) = IVeloPool(pool).slot0();
+        (sqrtPriceX96, , , , , ) = IVeloPool(pool).slot0();
     }
 
-    /** 
+    /**
      * @notice The tick distance of the pool.
      * @return int24 The tick distance/spacing of the pool.
-    */
+     */
     function _tickDistance() private view returns (int24) {
         return IVeloPool(pool).tickSpacing();
     }
@@ -666,15 +789,15 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     function _setAltTick(int24 tick, int24 distance, int24 width) private {
         (uint256 bal0, uint256 bal1) = balancesOfThis();
 
-        // We calculate how much token0 we have in the price of token1. 
+        // We calculate how much token0 we have in the price of token1.
         uint256 amount0;
 
         if (bal0 > 0) {
             //audit price() is spot price and it's manipulable
-            amount0 = bal0 * price() / PRECISION;
+            amount0 = (bal0 * price()) / PRECISION;
         }
 
-        // We set the alternative position based on the token that has the most value available. 
+        // We set the alternative position based on the token that has the most value available.
         if (amount0 < bal1) {
             (positionAlt.tickLower, ) = TickUtils.baseTicks(
                 tick,
@@ -686,7 +809,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
                 tick,
                 distance,
                 distance
-            ); 
+            );
         } else if (bal1 < amount0) {
             (, positionAlt.tickLower) = TickUtils.baseTicks(
                 tick,
@@ -698,17 +821,17 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
                 tick,
                 width,
                 distance
-            ); 
+            );
         }
     }
 
     /**
      * @notice Sets the path to swap the output token to the native token for fee harvesting.
      * @param _path The path to swap the output token to the native token.
-    */
+     */
     function setOutputToNativePath(bytes calldata _path) public onlyOwner {
         if (_path.length > 0) {
-            (address[] memory _route) = VeloSwapUtils.pathToRoute(_path);
+            address[] memory _route = VeloSwapUtils.pathToRoute(_path);
             if (_route[0] != output) revert InvalidInput();
             if (_route[_route.length - 1] != native) revert InvalidOutput();
             outputToNativePath = _path;
@@ -719,7 +842,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     /**
      * @notice Sets the deviation from the twap we will allow on adding liquidity.
      * @param _maxDeviation The max deviation from twap we will allow.
-    */
+     */
     function setDeviation(int56 _maxDeviation) external onlyOwner {
         emit SetDeviation(_maxDeviation);
 
@@ -732,7 +855,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     /**
      * @notice Returns the route to swap the output token to the native token for fee harvesting.
      * @return address[] The route to swap the output to the native token.
-    */
+     */
     function outputToNative() public view returns (address[] memory) {
         if (outputToNativePath.length == 0) return new address[](0);
         return VeloSwapUtils.pathToRoute(outputToNativePath);
@@ -740,28 +863,28 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
     /// @notice Returns the price of the first token in native token.
     function lpToken0ToNativePrice() public returns (uint256) {
-        uint amount = 10**IERC20Metadata(lpToken0).decimals() / 10;
+        uint amount = 10 ** IERC20Metadata(lpToken0).decimals() / 10;
         if (lpToken0 == native) return amount;
         return IQuoter(quoter).quoteExactInput(lpToken0ToNativePath, amount);
     }
 
     /// @notice Returns the price of the second token in native token.
     function lpToken1ToNativePrice() public returns (uint256) {
-        uint amount = 10**IERC20Metadata(lpToken1).decimals() / 10;
+        uint amount = 10 ** IERC20Metadata(lpToken1).decimals() / 10;
         if (lpToken1 == native) return amount;
         return IQuoter(quoter).quoteExactInput(lpToken1ToNativePath, amount);
     }
 
-    /** 
+    /**
      * @notice The twap of the last minute from the pool.
      * @return twapTick The twap of the last minute from the pool.
-    */
+     */
     function twap() public view returns (int56 twapTick) {
         uint32[] memory secondsAgo = new uint32[](2);
-        secondsAgo[0] = uint32(twapInterval); //audit-info Why cast it to uint32 when it's already the default type? 
+        secondsAgo[0] = uint32(twapInterval); //audit-info Why cast it to uint32 when it's already the default type?
         secondsAgo[1] = 0;
 
-        (int56[] memory tickCuml,) = IVeloPool(pool).observe(secondsAgo); //audit-info check on what observe() is doing 
+        (int56[] memory tickCuml, ) = IVeloPool(pool).observe(secondsAgo); //audit-info check on what observe() is doing
         twapTick = (tickCuml[1] - tickCuml[0]) / int32(twapInterval); //audit-ok Pretty safe to downcast to int32 as the max value is 2B.
     }
 
@@ -774,10 +897,10 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         twapInterval = _interval;
     }
 
-    /** 
+    /**
      * @notice Sets our position width and readjusts our positions.
      * @param _width The new width multiplier of the position.
-    */
+     */
     function setPositionWidth(int24 _width) external onlyOwner {
         emit SetPositionWidth(positionWidth, _width);
         _claimEarnings();
@@ -809,20 +932,30 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
 
     /// @notice Retire the strategy and return all the dust to the fee recipient.
     function retireVault() external onlyOwner {
-        if (IBeefyVaultConcLiq(vault).totalSupply() != 10**3) revert NotAuthorized();
-        panic(0,0);
+        if (IBeefyVaultConcLiq(vault).totalSupply() != 10 ** 3)
+            revert NotAuthorized();
+        panic(0, 0);
         address feeRecipient = beefyFeeRecipient();
-        IERC20Metadata(lpToken0).safeTransfer(feeRecipient, IERC20Metadata(lpToken0).balanceOf(address(this)));
-        IERC20Metadata(lpToken1).safeTransfer(feeRecipient, IERC20Metadata(lpToken1).balanceOf(address(this)));
+        IERC20Metadata(lpToken0).safeTransfer(
+            feeRecipient,
+            IERC20Metadata(lpToken0).balanceOf(address(this))
+        );
+        IERC20Metadata(lpToken1).safeTransfer(
+            feeRecipient,
+            IERC20Metadata(lpToken1).balanceOf(address(this))
+        );
         _transferOwnership(address(0));
     }
 
-    /**  
+    /**
      * @notice Remove Liquidity and Allowances, then pause deposits.
      * @param _minAmount0 The minimum amount of token0 in the strategy after panic.
      * @param _minAmount1 The minimum amount of token1 in the strategy after panic.
      */
-    function panic(uint256 _minAmount0, uint256 _minAmount1) public onlyManager {
+    function panic(
+        uint256 _minAmount0,
+        uint256 _minAmount1
+    ) public onlyManager {
         _claimEarnings();
         _removeLiquidity();
         _removeAllowances();
@@ -833,12 +966,12 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     }
 
     /// @notice Unpause deposits, give allowances and add liquidity.
-    //audit What's the matter of Pause/Unpaused when there are no function using the whenNotPaused() modifier ? 
+    //audit What's the matter of Pause/Unpaused when there are no function using the whenNotPaused() modifier ?
     function unpause() external onlyManager {
-        //audit-info how can the owner be the 0 address ? 
+        //audit-info how can the owner be the 0 address ?
         if (owner() == address(0)) revert NotAuthorized();
 
-        //audit-info Why so many actions only on unpaused ? 
+        //audit-info Why so many actions only on unpaused ?
         _giveAllowances();
         _unpause();
         _setTicks();
@@ -861,7 +994,12 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         IERC20Metadata(lpToken1).forceApprove(nftManager, 0);
     }
 
-    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
         return this.onERC721Received.selector;
     }
 }
