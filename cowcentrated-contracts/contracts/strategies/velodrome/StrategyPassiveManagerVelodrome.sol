@@ -195,12 +195,7 @@ contract StrategyPassiveManagerVelodrome is
         gauge = _gauge;
         rewardPool = _rewardPool;
 
-       
-        
-
-        console.log("token0 should be 0:", lpToken0);
         lpToken0 = IVeloPool(_pool).token0();
-        console.log("token0 address:", lpToken0);
         lpToken1 = IVeloPool(_pool).token1();
 
         // Our width multiplier. The tick distance of each side will be width * tickSpacing.
