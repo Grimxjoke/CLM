@@ -730,7 +730,6 @@ contract StrategyPassiveManagerUniswap is StratFeeManagerInitializable, IStrateg
         if (lpToken1 == native) return amount * 10;
         return IQuoter(quoter).quoteExactInput(lpToken1ToNativePath, amount) * 10;
     }
-
     /** 
      * @notice The twap of the last minute from the pool.
      * @return twapTick The twap of the last minute from the pool.
