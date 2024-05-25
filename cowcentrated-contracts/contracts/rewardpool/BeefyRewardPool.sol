@@ -350,6 +350,7 @@ contract BeefyRewardPool is ERC20Upgradeable, OwnableUpgradeable {
 
     /// @dev Withdraw BIFI tokens and burn an equal number of receipt tokens from the caller
     /// @param _amount Amount of BIFI to withdraw
+    
     function _withdraw(uint256 _amount) private {
         _burn(msg.sender, _amount);
         stakedToken.safeTransfer(msg.sender, _amount);

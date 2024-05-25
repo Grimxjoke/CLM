@@ -226,7 +226,7 @@ contract StrategyPassiveManagerUniswap is StratFeeManagerInitializable, IStrateg
     }
 
     /// @notice Adds liquidity to the main and alternative positions called on deposit, harvest and withdraw.
-    //audit should revert if amountsOk is flase. Could lead to minting Alt positions without Main positions
+    //audit mody:should revert if amountsOk is flase. Could lead to minting Alt positions without Main positions
     function _addLiquidity() private {
         _whenStrategyNotPaused();
 
@@ -322,6 +322,9 @@ contract StrategyPassiveManagerUniswap is StratFeeManagerInitializable, IStrateg
     }
 
     /// @notice Internal function to claim fees from the pool, charge fees for Beefy, then readjust our positions.
+
+    //audit mody: reentrancy recipient can reenter the external harvest function. 
+    //audit mody: dos. receipient can front run harvest calls and force a failure on fee distribution in their smart contract
     function _harvest (address _callFeeRecipient) private {
         // Claim fees from the pool and collect them.
         _claimEarnings();
@@ -514,6 +517,7 @@ contract StrategyPassiveManagerUniswap is StratFeeManagerInitializable, IStrateg
      * @return locked0 The amount of token0 locked in the strategy.
      * @return locked1 The amount of token1 locked in the strategy.
     */
+    //audit mody: invriant: as time goes by locked0 and locked1 should get smaller
     function lockedProfit() public override view returns (uint256 locked0, uint256 locked1) {
         (uint256 balThis0, uint256 balThis1) = balancesOfThis();
         (uint256 balPool0, uint256 balPool1,,,,) = balancesOfPool();

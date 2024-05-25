@@ -89,7 +89,7 @@ contract StratFeeManagerInitializable is OwnableUpgradeable, PausableUpgradeable
     /** 
      * @notice Modifier that throws if called by any account other than the manager or the owner
     */
-    //audit Can the keeper be changed ? 
+    //audit Can the keeper be changed ?  @mody: only through the setkeeper in the factory. protected with onlyowner modifier
     modifier onlyManager() {
         if (msg.sender != owner() && msg.sender != keeper()) revert NotManager();
         _;
