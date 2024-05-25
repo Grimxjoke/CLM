@@ -130,6 +130,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         if (!isCalm()) revert NotCalm();
     }
 
+    //audit-info Assuming the rebalancer is the Gelato bot
     modifier onlyRebalancers() {
         if (!IStrategyFactory(factory).rebalancers(msg.sender)) revert NotAuthorized();
         _;
@@ -196,7 +197,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
     }
 
     /// @notice Only allows the vault to call a function.
-    //audit Can the vault address be change ? 
+    //audit Can the vault address be changed ? 
     function _onlyVault () private view {
         if (msg.sender != vault) revert NotVault();
     }
@@ -472,6 +473,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
         // Claim rewards
         uint256 feeBefore = IERC20Metadata(output).balanceOf(address(this));
 
+        //audit-info How this is working ? Is this contract suppose to receive some tokens ?
         if (positionMain.nftId != 0) ICLGauge(gauge).getReward(positionMain.nftId);
         if (positionAlt.nftId != 0) ICLGauge(gauge).getReward(positionAlt.nftId);
 
@@ -610,6 +612,7 @@ contract StrategyPassiveManagerVelodrome is StratFeeManagerInitializable, IStrat
      * @return tick The current tick of the pool.
     */
     function currentTick() public view returns (int24 tick) {
+        //audit Is the current tick can be manipulable like the spot price ? 
         (,tick,,,,) = IVeloPool(pool).slot0();
     }
 
