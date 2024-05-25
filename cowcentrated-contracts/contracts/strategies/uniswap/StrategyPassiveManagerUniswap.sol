@@ -323,13 +323,15 @@ contract StrategyPassiveManagerUniswap is StratFeeManagerInitializable, IStrateg
 
     /// @notice Internal function to claim fees from the pool, charge fees for Beefy, then readjust our positions.
 
-    //audit mody: reentrancy recipient can reenter the external harvest function. 
+    //audit mody: reentrancy recipient can reenter the external harvest function.
+    //audit-ok no reentrancy issue 
     //audit mody: dos. receipient can front run harvest calls and force a failure on fee distribution in their smart contract
+    //audit-ok the contract does not have a timelock which makes DOS not possible. Frontrun-ed transactions will just execute normally. 
     function _harvest (address _callFeeRecipient) private {
         // Claim fees from the pool and collect them.
         _claimEarnings();
         _removeLiquidity();
-
+        
         // Charge fees for Beefy and send them to the appropriate addresses, charge fees to accrued state fee amounts.
         (uint256 fee0, uint256 fee1) = _chargeFees(_callFeeRecipient, fees0, fees1);
 

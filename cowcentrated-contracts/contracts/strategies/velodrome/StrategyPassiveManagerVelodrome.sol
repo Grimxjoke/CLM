@@ -60,7 +60,7 @@ contract StrategyPassiveManagerVelodrome is
     /// @notice The address of the second token in the liquidity pool.
     address public lpToken1;
     /// @notice The address of the rewardPool.
-    //audit-info What's the reward pool ?
+    //audit-info What's the reward pool ? @mody: on beefy, you can stake your reipt beef tokens and get rewards on them with another native token
     address public rewardPool;
 
     /// @notice The amount of unharvested output in the strategy.
