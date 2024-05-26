@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 // Interface for Velodrome router
 interface IVelodromeRouter {
@@ -19,7 +18,7 @@ interface IVelodromeRouter {
     ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity);
 }
 
-contract VelodromeLiquidityProvider is Ownable {
+contract VelodromeLiquidityProvider{
     IVelodromeRouter public velodromeRouter;
     IERC20 public tokenA;
     IERC20 public tokenB;
@@ -44,7 +43,7 @@ contract VelodromeLiquidityProvider is Ownable {
         uint256 amountBMin,
         address to,
         uint256 deadline
-    ) external onlyOwner {
+    ) external {
         // Transfer tokens from the owner to this contract
         tokenA.transferFrom(msg.sender, address(this), amountADesired);
         tokenB.transferFrom(msg.sender, address(this), amountBDesired);

@@ -1,12 +1,14 @@
+//SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
 // import {Test, console} from "forge-std/Test.sol";
-import {Setup} from "./Setup2.t.sol";
+import {Setup2} from "./Setup2.t.sol";
 import {CustomActor} from "./CustomActor.sol";
 import "./Hevm.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./VelodromeLiquidityProvider.sol";
+import "./VeldromeLiquidityProvider.sol";
+import "forge-std/console.sol";
 
 // Test ETH/USDT Uniswap Strategy. Large decimal token0 and small decimal token1;
 contract  EchidnaTest2 is Setup2 {
@@ -16,7 +18,7 @@ contract  EchidnaTest2 is Setup2 {
 
     bool isSetupCompleted;
     VelodromeLiquidityProvider lpProvider;
-    function setUp(){
+    function setUp() override public{
         if (!isSetupCompleted)
         {
             super.setUp();
@@ -34,20 +36,26 @@ contract  EchidnaTest2 is Setup2 {
 
             //giving some extra tokens to our attacker
             hevm.prank(token0Owner);
-            token0Token.mint(address(attacker),1000000*10**token0Token.decimals());
+            token0Token.transfer(address(attacker),1000000*10**token0Token.decimals());
             hevm.prank(token1Owner);
-            token1Token.mint(address(attacker),1000000*10**token1Token.decimals());
-            hevm.prank(nativeOwner);
-            nativeToken.mint(address(attacker),1000000*10**nativeToken.decimals());
-            isSetupCompleted=true;
+            token1Token.transfer(address(attacker),1000000*10**token1Token.decimals());
+
+            //the following transfer is not needed as the native token is the same as token1
+            // hevm.prank(nativeOwner);
+            // nativeToken.mint(address(attacker),1000000*10**nativeToken.decimals());
+
+            
 
             //veldrome lp
-            lpProvider = new VelodromeLiquidityProvider(unirouter,token0,token1,native);
+            lpProvider = new VelodromeLiquidityProvider(unirouter,token0,token1,false);
+
+
+            isSetupCompleted=true;
         }
 
         
     }
-    function echidna_test_calm_period(uint deposit0,uint deposit1) external pure returns (bool) {
+    function echidna_test_calm_period(uint deposit0,uint deposit1) external {
         if(!isSetupCompleted)setUp();
 
         //get current price

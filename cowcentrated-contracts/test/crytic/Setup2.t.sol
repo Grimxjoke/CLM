@@ -55,7 +55,7 @@ contract Setup2 {
     error StrategyPaused();
     error NoOutputBal();
 
-    function setUp() public {
+    function setUp() virtual public {
 
 
         // Deploy Contracts
