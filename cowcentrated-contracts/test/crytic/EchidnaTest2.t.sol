@@ -3,10 +3,10 @@ pragma solidity 0.8.23;
 // import {Test, console} from "forge-std/Test.sol";
 import {Setup} from "./Setup2.t.sol";
 import {CustomActor} from "./CustomActor.sol";
-import "Hevm.sol";
+import "./Hevm.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./VelodromeLiquidityProvider.sol"
+import "./VelodromeLiquidityProvider.sol";
 
 // Test ETH/USDT Uniswap Strategy. Large decimal token0 and small decimal token1;
 contract  EchidnaTest2 is Setup2 {
@@ -59,6 +59,7 @@ contract  EchidnaTest2 is Setup2 {
         uint newPrice = strategy.price();
         console.log("Price after... ",newPrice);
 
+        
 
 
 
