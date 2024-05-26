@@ -4,3 +4,6 @@
 [submodule "cowcentrated-contracts/lib/solmate"]
 	path = cowcentrated-contracts/lib/solmate
 	url = https://github.com/transmissions11/solmate
+[submodule "cowcentrated-contracts/lib/openzeppelin-contracts"]
+	path = cowcentrated-contracts/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
