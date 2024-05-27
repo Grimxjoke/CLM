@@ -148,7 +148,7 @@ contract StrategyPassiveManagerVelodrome is
     }
 
     /// @notice function to only allow deposit/setTick actions when current price is within a certain deviation of twap.
-    //audit Crutial function imo
+    //audit tick is easely manipulable by anybody
     function isCalm() public view returns (bool) {
         //The current tick of the pool
         int24 tick = currentTick();
@@ -808,7 +808,8 @@ contract StrategyPassiveManagerVelodrome is
      * @return sqrtPriceX96 The sqrt price of the pool.
      */
 
-    //audit Watchout, Can be easily manipulated
+    //audit-issue Watchout, Can be easily manipulated -> Need to see if this is used wrongly
+    // Check Solodit finiding https://solodit.xyz/issues/h-02-use-of-slot0-to-get-sqrtpricelimitx96-can-lead-to-price-manipulation-code4rena-maia-dao-ecosystem-maia-dao-ecosystem-git
     function sqrtPrice() public view returns (uint160 sqrtPriceX96) {
         (sqrtPriceX96, , , , , ) = IVeloPool(pool).slot0();
     }
