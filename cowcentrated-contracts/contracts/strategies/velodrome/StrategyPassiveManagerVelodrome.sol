@@ -150,13 +150,17 @@ contract StrategyPassiveManagerVelodrome is
     /// @notice function to only allow deposit/setTick actions when current price is within a certain deviation of twap.
     //audit Crutial function imo
     function isCalm() public view returns (bool) {
+        //The current tick of the pool
         int24 tick = currentTick();
+        // The twap of the last minute from the pool.
         int56 twapTick = twap();
 
         int56 minCalmTick = int56(
+            // Returns the largest of two signed numbers.
             SignedMath.max(twapTick - maxTickDeviation, MIN_TICK)
         );
         int56 maxCalmTick = int56(
+            //Returns the smallest of two signed numbers.
             SignedMath.min(twapTick + maxTickDeviation, MAX_TICK)
         );
 
@@ -186,6 +190,7 @@ contract StrategyPassiveManagerVelodrome is
         bytes[] calldata _paths,
         CommonAddresses calldata _commonAddresses
     ) external initializer {
+        //Initialize the Strategy Fee Manager inherited contract with the common addresses
         __StratFeeManager_init(_commonAddresses);
 
         pool = _pool;
@@ -195,7 +200,9 @@ contract StrategyPassiveManagerVelodrome is
         gauge = _gauge;
         rewardPool = _rewardPool;
 
+        // The first of the two tokens of the pool, sorted by address
         lpToken0 = IVeloPool(_pool).token0();
+        // The second of the two tokens of the pool, sorted by address
         lpToken1 = IVeloPool(_pool).token1();
 
         // Our width multiplier. The tick distance of each side will be width * tickSpacing.
@@ -207,7 +214,7 @@ contract StrategyPassiveManagerVelodrome is
 
         // Set the twap interval to 120 seconds.
         twapInterval = 120;
-
+        // Gives swap permisions for the tokens to the unirouter.
         _giveAllowances();
     }
 
@@ -219,23 +226,29 @@ contract StrategyPassiveManagerVelodrome is
 
     /// @notice Called during deposit and withdraw to remove liquidity and harvest fees for accounting purposes.
     function beforeAction() external {
+        // Only allows the vault to call a function.
         _onlyVault();
+        // Internal function to claim rewards from the gauge and collect them
         _claimEarnings();
+        // Removes liquidity from the main and alternative positions, called on deposit, withdraw and harvest.
         _removeLiquidity();
     }
 
     /// @notice Called during deposit to add all liquidity back to their positions.
     function deposit() external onlyCalmPeriods {
+        // Only allows the vault to call a function.
         _onlyVault();
 
         if (!initTicks) {
+            // Sets the tick positions for the main and alternative positions.
             _setTicks();
             initTicks = true;
         }
 
-        // Add all liquidity
+        // Adds liquidity to the main and alternative positions called on deposit, harvest and withdraw.
         _addLiquidity();
 
+        // Returns total token balances in the strategy.
         (uint256 bal0, uint256 bal1) = balances();
 
         // TVL Balances after deposit
@@ -259,6 +272,7 @@ contract StrategyPassiveManagerVelodrome is
         // After we take what is needed we add it all back to our positions.
         if (!_isPaused()) _addLiquidity();
 
+        // Returns total token balances in the strategy.
         (uint256 bal0, uint256 bal1) = balances();
 
         // TVL Balances after withdraw
@@ -267,8 +281,10 @@ contract StrategyPassiveManagerVelodrome is
 
     /// @notice Adds liquidity to the main and alternative positions called on deposit, harvest and withdraw.
     function _addLiquidity() private {
-        _whenStrategyNotPaused(); //revert if the Stategy is Paused
+        // throws if the strategy is paused
+        _whenStrategyNotPaused();
 
+        // Returns total tokens sitting in the strategy.
         (uint256 bal0, uint256 bal1) = balancesOfThis();
 
         int24 mainLower = positionMain.tickLower; //get the tick Lower of Main position
@@ -277,7 +293,11 @@ contract StrategyPassiveManagerVelodrome is
         int24 altUpper = positionAlt.tickUpper; //get the tick Upper of Alt position
 
         // Then we fetch how much liquidity we get for adding at the main position ticks with our token balances.
+        // The sqrt price of the pool.
         uint160 sqrtprice = sqrtPrice();
+
+        // Computes the maximum amount of liquidity received for a given amount of:
+        // token0, token1, the current pool prices and the prices at the tick boundaries
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtprice,
             TickMath.getSqrtRatioAtTick(mainLower),
@@ -286,6 +306,8 @@ contract StrategyPassiveManagerVelodrome is
             bal1
         );
 
+        // Computes the token0 and token1 value for a given amount of
+        // liquidity, the current pool prices and the prices at the tick boundaries
         (uint256 amount0, uint256 amount1) = LiquidityAmounts
             .getAmountsForLiquidity(
                 sqrtprice,
@@ -294,14 +316,17 @@ contract StrategyPassiveManagerVelodrome is
                 liquidity
             );
 
+        //Checks if the amounts are ok to add liquidity.
         bool amountsOk = _checkAmounts(liquidity, mainLower, mainUpper);
 
         // Mint or add liquidity to the position.
         if (liquidity > 0 && amountsOk) {
             //audit-info Mint position if the user has some liquidity in main
+            //Mints a new position for the main or alternative position.
             _mintPosition(mainLower, mainUpper, amount0, amount1, true);
         }
 
+        // Returns total tokens sitting in the strategy
         (bal0, bal1) = balancesOfThis();
 
         // Fetch how much liquidity we get for adding at the alternative position ticks with our token balances.
@@ -323,12 +348,17 @@ contract StrategyPassiveManagerVelodrome is
         // Mint or add liquidity to the position.
         if (liquidity > 0 && (amount0 > 0 || amount1 > 0)) {
             //audit-info Mint position if the user has some liquidity in alt
+            //Mints a new position for the main or alternative position.
             _mintPosition(altLower, altUpper, amount0, amount1, false);
         }
 
         if (positionMain.nftId != 0)
+            // Used to deposit a CL position into the gauge
             ICLGauge(gauge).deposit(positionMain.nftId);
-        if (positionAlt.nftId != 0) ICLGauge(gauge).deposit(positionAlt.nftId);
+
+        if (positionAlt.nftId != 0)
+            // Used to deposit a CL position into the gauge
+            ICLGauge(gauge).deposit(positionAlt.nftId);
     }
 
     /// @notice Mints a new position for the main or alternative position.
@@ -343,6 +373,7 @@ contract StrategyPassiveManagerVelodrome is
             .MintParams({
                 token0: lpToken0,
                 token1: lpToken1,
+                //The tick distance of the pool.
                 tickSpacing: _tickDistance(),
                 tickLower: _tickLower,
                 tickUpper: _tickUpper,
@@ -355,6 +386,7 @@ contract StrategyPassiveManagerVelodrome is
                 sqrtPriceX96: 0
             });
 
+        //Creates a new position wrapped in a NFT
         (uint256 nftId, , , ) = INftPositionManager(nftManager).mint(
             mintParams
         );
@@ -362,6 +394,7 @@ contract StrategyPassiveManagerVelodrome is
         if (_mainPosition) positionMain.nftId = nftId;
         else positionAlt.nftId = nftId;
 
+        //Gives permission to `to` to transfer `tokenId` token to another account.
         IERC721(nftManager).approve(gauge, nftId);
     }
 
@@ -371,7 +404,9 @@ contract StrategyPassiveManagerVelodrome is
         uint128 liquidityAlt;
         if (positionMain.nftId != 0) {
             (, , , , , , , liquidity, , , , ) = INftPositionManager(nftManager)
+            //Returns the liquidity of the position
                 .positions(positionMain.nftId);
+            //Used to withdraw a CL position from the gauge
             ICLGauge(gauge).withdraw(positionMain.nftId);
         }
 
@@ -452,6 +487,10 @@ contract StrategyPassiveManagerVelodrome is
         int24 _tickLower,
         int24 _tickUpper
     ) private view returns (bool) {
+
+
+        // Computes the token0 and token1 value for a given amount of 
+        // liquidity, the current pool prices and the prices at the tick boundaries
         (uint256 amount0, uint256 amount1) = LiquidityAmounts
             .getAmountsForLiquidity(
                 sqrtPrice(),
@@ -466,11 +505,16 @@ contract StrategyPassiveManagerVelodrome is
 
     /// @notice Function called to rebalance the position
     function moveTicks() external onlyCalmPeriods onlyRebalancers {
+        //claim rewards from the gauge and collect them.
         _claimEarnings();
+        // Removes liquidity from the main and alternative positions
         _removeLiquidity();
+        // Sets the tick positions for the main and alternative positions.
         _setTicks();
+        // Adds liquidity to the main and alternative positions
         _addLiquidity();
 
+        // Returns total token balances in the strategy.
         (uint256 bal0, uint256 bal1) = balances();
         emit TVL(bal0, bal1);
     }
@@ -478,6 +522,7 @@ contract StrategyPassiveManagerVelodrome is
     /// @notice Harvest call to claim rewards from gauge then charge fees for Beefy and notify rewards.
     /// @param _callFeeRecipient The address to send the call fee to.
     function harvest(address _callFeeRecipient) external {
+        // Claim rewards from gauge then charge fees for Beefy and notify rewards
         _harvest(_callFeeRecipient);
     }
 
@@ -490,10 +535,11 @@ contract StrategyPassiveManagerVelodrome is
 
     /// @notice Internal function to claim rewards from gauge then charge fees for Beefy and notify rewards
     function _harvest(address _callFeeRecipient) private {
-        // Claim rewards from gauge
+        // Claim rewards from the gauge and collect them.
         _claimEarnings();
 
         // Charge fees for Beefy and send them to the appropriate addresses, charge fees to accrued state fee amounts.
+        // feeLeft is in token0
         uint256 feeLeft = _chargeFees(_callFeeRecipient, fees);
 
         // Reset state fees to 0.
@@ -512,12 +558,15 @@ contract StrategyPassiveManagerVelodrome is
     /// @notice Internal function to claim rewards from the gauge and collect them.
     function _claimEarnings() private {
         // Claim rewards
+        //audit Why does the balance of this contract of "output Token" is considered fees ? 
         uint256 feeBefore = IERC20Metadata(output).balanceOf(address(this));
 
         //audit-info How this is working ? Is this contract suppose to receive some tokens ?
         if (positionMain.nftId != 0)
+            // Retrieve rewards for all tokens owned by an account
             ICLGauge(gauge).getReward(positionMain.nftId);
         if (positionAlt.nftId != 0)
+            // Retrieve rewards for all tokens owned by an account
             ICLGauge(gauge).getReward(positionAlt.nftId);
 
         uint256 claimed = IERC20Metadata(output).balanceOf(address(this)) -
@@ -537,7 +586,8 @@ contract StrategyPassiveManagerVelodrome is
         address _callFeeRecipient,
         uint256 _amount
     ) private returns (uint256 _amountLeft) {
-        /// Fetch our fee percentage amounts from the fee config.
+        // Fetch our fee percentage amounts from the fee config.
+        // get the fees breakdown from the fee config for this contract
         IFeeConfig.FeeCategory memory fee = getFees();
 
         /// We calculate how much to swap and then swap both tokens to native and charge fees.
@@ -553,6 +603,7 @@ contract StrategyPassiveManagerVelodrome is
                 address(this)
             );
             if (output != native) {
+                // Swap along an encoded path using known amountIn
                 VeloSwapUtils.swap(
                     unirouter,
                     outputToNativePath,
@@ -580,6 +631,7 @@ contract StrategyPassiveManagerVelodrome is
             callFeeAmount -
             strategistFeeAmount;
         IERC20Metadata(native).safeTransfer(
+            // The address of the beefy fee recipient, set on the factory.
             beefyFeeRecipient(),
             beefyFeeAmount
         );
@@ -596,8 +648,11 @@ contract StrategyPassiveManagerVelodrome is
         public
         view
         returns (uint256 token0Bal, uint256 token1Bal)
-    {
+    {   
+        // Returns total tokens sitting in the strategy.
         (uint256 thisBal0, uint256 thisBal1) = balancesOfThis();
+
+        // Returns total tokens in pool positions (is a calculation which means it could be a little off by a few wei).
         (uint256 poolBal0, uint256 poolBal1, , , , ) = balancesOfPool();
 
         uint256 total0 = thisBal0 + poolBal0;
@@ -672,6 +727,9 @@ contract StrategyPassiveManagerVelodrome is
                 altOwed1
             ) = INftPositionManager(nftManager).positions(positionAlt.nftId);
 
+
+        // Computes the token0 and token1 value for a given amount of
+        // liquidity, the current pool prices and the prices at the tick boundaries
         (mainAmount0, mainAmount1) = LiquidityAmounts.getAmountsForLiquidity(
             sqrtPriceX96,
             TickMath.getSqrtRatioAtTick(positionMain.tickLower),
@@ -826,7 +884,10 @@ contract StrategyPassiveManagerVelodrome is
      */
     function setOutputToNativePath(bytes calldata _path) public onlyOwner {
         if (_path.length > 0) {
+
+            // Convert encoded path to token route
             address[] memory _route = VeloSwapUtils.pathToRoute(_path);
+
             if (_route[0] != output) revert InvalidInput();
             if (_route[_route.length - 1] != native) revert InvalidOutput();
             outputToNativePath = _path;
@@ -853,6 +914,7 @@ contract StrategyPassiveManagerVelodrome is
      */
     function outputToNative() public view returns (address[] memory) {
         if (outputToNativePath.length == 0) return new address[](0);
+        // Convert encoded path to token route
         return VeloSwapUtils.pathToRoute(outputToNativePath);
     }
 
@@ -879,8 +941,9 @@ contract StrategyPassiveManagerVelodrome is
         secondsAgo[0] = uint32(twapInterval); //audit-info Why cast it to uint32 when it's already the default type?
         secondsAgo[1] = 0;
 
-        (int56[] memory tickCuml, ) = IVeloPool(pool).observe(secondsAgo); //audit-info check on what observe() is doing
-        twapTick = (tickCuml[1] - tickCuml[0]) / int32(twapInterval); //audit-ok Pretty safe to downcast to int32 as the max value is 2B.
+        // @return tickCumulatives Cumulative tick values as of each `secondsAgos` from the current block timestamp
+        (int56[] memory tickCuml, ) = IVeloPool(pool).observe(secondsAgo); 
+        twapTick = (tickCuml[1] - tickCuml[0]) / int32(twapInterval);
     }
 
     function setTwapInterval(uint32 _interval) external onlyOwner {
@@ -929,6 +992,7 @@ contract StrategyPassiveManagerVelodrome is
     function retireVault() external onlyOwner {
         if (IBeefyVaultConcLiq(vault).totalSupply() != 10 ** 3)
             revert NotAuthorized();
+        //  Remove Liquidity and Allowances, then pause deposits.
         panic(0, 0);
         address feeRecipient = beefyFeeRecipient();
         IERC20Metadata(lpToken0).safeTransfer(
@@ -939,6 +1003,8 @@ contract StrategyPassiveManagerVelodrome is
             feeRecipient,
             IERC20Metadata(lpToken1).balanceOf(address(this))
         );
+
+        //Transfers ownership of the contract address(0) 
         _transferOwnership(address(0));
     }
 
@@ -966,7 +1032,7 @@ contract StrategyPassiveManagerVelodrome is
         //audit-info how can the owner be the 0 address ?
         if (owner() == address(0)) revert NotAuthorized();
 
-        //audit-info Why so many actions only on unpaused ?
+        //audit-info Why Add liquidity on unpaused ? 
         _giveAllowances();
         _unpause();
         _setTicks();
