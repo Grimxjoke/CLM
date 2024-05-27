@@ -247,6 +247,8 @@ contract StrategyPassiveManagerVelodrome is
      * @param _amount0 The amount of token0 to withdraw.
      * @param _amount1 The amount of token1 to withdraw.
      */
+
+     //audit-issue withdraw re-adds liquidity without checking for calm periods.  allows front running to inflate prices. should be added to _addLiquidity
     function withdraw(uint256 _amount0, uint256 _amount1) external {
         _onlyVault();
 
@@ -962,8 +964,13 @@ contract StrategyPassiveManagerVelodrome is
 
     /// @notice Unpause deposits, give allowances and add liquidity.
     //audit What's the matter of Pause/Unpaused when there are no function using the whenNotPaused() modifier ?
+    //audit-issue if a contract is paused, when unpaused an attacker can front run the unpause call and take (and repay) a flash loan form the velodrome pool.
+    // if the loan is big enough, the _setTicks call will fail since it requires calm periods. This will brick the strategy contract and freeze the funds inside of it as long as the call can be frontran. 
+    // this would be more expensive on networks with no mempool (L2) as the attacker will have to take the flashloan in every block and pay the loan fees. 
+    //mitigation: add an emergency unpause function which allows the contract to be resumed regardless of tick position. another solution is to send the funds back to the vault after calling 
+    // the panic function to allow users to withdraw as needed. 
     function unpause() external onlyManager {
-        //audit-info how can the owner be the 0 address ?
+        //audit-info how can the owner be the 0 address ? 
         if (owner() == address(0)) revert NotAuthorized();
 
         //audit-info Why so many actions only on unpaused ?
